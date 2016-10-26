@@ -5,18 +5,32 @@
                                  "Brett" {:emotion :scared
                                           :alive true}}})
 
-(def action-definitions [[(fn [scene action characters]
-                            (= action :say-what))
-                          (fn [scene action [from-character to-character] character-names]
-                            (if (= :angry (:emotion to-character))
-                              [[:shoot (reverse character-names)]]
-                              [[:say-what-again-motherfucker (reverse character-names)]]))]
+(defmacro defactions [& body]
+  (let [[def-name & funcs] body
+        pairs (partition 2 funcs)]
+    `(def ~def-name
+       ~(mapv (fn [[pred get-actions]]
+                [(if (keyword? pred)
+                    (fn [scene action characters]
+                      (= action pred))
+                    pred)
+                 (if (keyword? get-actions)
+                   (fn [scene action characters character-names]
+                     [[get-actions (reverse character-names)]])
+                   get-actions)])
+              pairs))))
 
-                         [(fn [scene action [from-character to-character]]
-                            (and (= (:emotion to-character) :scared)
-                                 (= (:emotion from-character) :angry)))
-                          (fn [scene action characters character-names]
-                            [[:say-what (reverse character-names)]])]])
+(defactions action-definitions
+  :say-what
+  (fn [scene action [from-character to-character] character-names]
+    (if (= :angry (:emotion to-character))
+      [[:shoot (reverse character-names)]]
+      [[:say-what-again-motherfucker (reverse character-names)]]))
+
+  (fn [scene action [from-character to-character]]
+      (and (= (:emotion to-character) :scared)
+           (= (:emotion from-character) :angry)))
+  :say-what)
 
 (defn update-character [scene name key value]
   (assoc-in scene [:characters name key] value))
