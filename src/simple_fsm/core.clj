@@ -1,20 +1,51 @@
 (ns simple-fsm.core)
-
+                                       
 (def initial-scene {:characters {"Jules" {:emotion :calm
                                           :alive true}
                                  "Brett" {:emotion :scared
                                           :alive true}}})
 
-(defn kill-character [scene to-kill]
-  (update-in scene [:characters to-kill :alive] (constantly false)))
+(def action-definitions [[(fn [scene action characters]
+                            (= action :say-what))
+                          (fn [scene action [from-character to-character] character-names]
+                            (if (= :angry (:emotion to-character))
+                              [[:shoot (reverse character-names)]]
+                              [[:say-what-again-motherfucker (reverse character-names)]]))]
 
-(defn get-actions [scene [action [from-character to-character]]]
-  (case action
-        :say-what [[:shoot [to-character from-character]]]
-        []))
+                         [(fn [scene action [from-character to-character]]
+                            (and (= (:emotion to-character) :scared)
+                                 (= (:emotion from-character) :angry)))
+                          (fn [scene action characters character-names]
+                            [[:say-what (reverse character-names)]])]])
+
+(defn update-character [scene name key value]
+  (assoc-in scene [:characters name key] value))
+
+(defn some-character [scene pred]
+  (some (fn [[name character]] (pred character)) (:characters scene)))
+
+(defn characters-where [scene pred]
+  (filter (fn [[name character]] (pred character)) (:characters scene)))
+
+(defn valid-action? [scene [action [from to]]]
+  (get-in scene [:characters from :alive]))
+
+(defn kill-character [scene name]
+  (-> scene
+      (update-character name :alive false)
+      (update-character name :emotion :dead)))
+
+(defn get-actions [scene [action character-names]]
+  (let [characters (map #(get-in scene [:characters %]) character-names)]
+    (->> action-definitions
+         (filter (fn [[pred _]]
+                   (pred scene action characters)))
+         (mapcat (fn [[_ get-actions]]
+                   (get-actions scene action characters character-names))))))
 
 (defn update-scene [scene [action [from-character to-character]]]
   (case action
+    :say-what (update-character scene to-character :emotion :angry)
     :shoot (kill-character scene to-character)
     scene))
 
@@ -23,6 +54,7 @@
   (if (nil? current-action)
     scene
     (let [[updated-scene next-actions] ((juxt update-scene get-actions) scene current-action)]
-      (recur updated-scene (concat rest-actions next-actions)))))
+      (recur updated-scene (->> (concat rest-actions next-actions)
+                                (filter (partial valid-action? updated-scene)))))))
 
 (play-scene initial-scene [[:say-what ["Brett" "Jules"]]])
