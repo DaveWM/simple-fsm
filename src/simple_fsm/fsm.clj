@@ -2,25 +2,29 @@
   (:require [simple-fsm.transform :as transform]))
 
 
-(defmulti process-character (fn
-                              [character event environ] [
-                                                         (:character-type character)
-                                                         (:state character)
-                                                         (:event-type event)
-                                                         ]
-                              ))
+(defmulti process-character
+  (fn
+    [character event environ]
+    [
+     (:character-type character)
+     (:state character)
+     (:event-type event)
+     ]
+    ))
 
 (defn create-process-methods [character-type transition]
-  (defmethod process-character [character-type (:old-state transition) (:event transition)]
+  (defmethod process-character
+    [character-type (:old-state transition) (:event transition)]
     [character event environ]
     "run action on character, then return new character value"
     (if (< (:time-cost transition) (:time-energy character))
       (let [tp-char (assoc-in character [:time-energy]
-                              (- (:time-energy character) (:time-cost transition)))]
-            ( (:action transition) tp-char event environ)
-            )
-      (transform/to-queue :deferred-event-queue character event ) ;; no TE so move to deferred    
-    )
+                              (- (:time-energy character)
+                                 (:time-cost transition)))]
+        ( (:action transition) tp-char event environ) )     
+      (transform/to-queue
+       :deferred-event-queue character event ) ;; no TE so move to deferred    
+      )
     )
   )
 
@@ -48,7 +52,7 @@
 ;; sending to self (using arguments from before)
 (defn integrate-environ
   [environ characters time-delta]
-  "so what you get with this  "
+  "so what you get with this"
   ;; first all characters get energy delta added to them
   (let [character-plus-delta (map (partial transform/add-time-energy time-delta) characters)]
     ;; now we turn the characters into agents, and store

@@ -1,7 +1,8 @@
-(ns simple-fsm.transform)
+(ns simple-fsm.transform
+  (:require [clojure.set :refer :all]))
 
-(defn add-to-queue [agent event key]
-  (conj (get-in agent [key]) event)
+(defn add-to-queue [character event key]
+  (conj (get-in character [key]) event)
   )
 
 (defn to-queue [key character event]
@@ -10,11 +11,10 @@
             )
   )
 
-
 (defn take-character-energy
   [character cost]
   (assoc-in character [:time-energy]
-            #(- %1 cost))
+            (- (:time-energy character) cost))
   )
 
 
@@ -40,6 +40,7 @@
 
  
 (defn split-fin-unfin
+  "convert this to use vars/refs"
   [char-agents]
   { :not-done (filter #(empty? (:deferred-events @%1) ) char-agents)
    :done (filter #(not (empty? (:deferred-events @%1) )) char-agents) } 
@@ -59,4 +60,10 @@
                                     (partial send-event destination origin)})]
     (send destination (partial to-queue :received-events) enhanced-event)                  
     )
+  )
+
+(defn create-character
+  [type name initial-state]
+  { :name name :state initial-state :character-type type
+   :event-queue []}
   )
