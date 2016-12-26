@@ -66,9 +66,9 @@
 
 
 (defn create-fin-unfin-agents []
-  [(agent {:deferred-event []})
-   (agent {:deferred-event [1]})
-   (agent {:deferred-event []})
+  [(agent {:deferred-events []})
+   (agent {:deferred-events [1]})
+   (agent {:deferred-events []})
    ]
   )
   
@@ -77,8 +77,48 @@
   (testing "split agents between completed and incomplete"
     (let [agents (create-fin-unfin-agents)]
       (let [fin-unfin (transform/split-fin-unfin agents)]
-        (is (= (2 (count (:done fin-unfin)))))
-        (is (= (1 (count (:not-done fin-unfin)))))
+        (is (= 2 (count (:done fin-unfin))))
+        (is (= 1 (count (:not-done fin-unfin))))
+        )
+      )
+    ))
+
+(deftest send-event-test
+  (testing "check that you can add to an agents queue"
+    (let [agent1 (agent {:received-events []})
+          agent2 (agent {:received-events []})]
+      (let [event {:send-response-fn
+                   (partial transform/send-event agent2 agent1) :val 2}]
+        (let [agent2_recvd (transform/send-event agent1 agent2 event)]
+          (await agent2_recvd)
+          (is (= 2 (:val (first (:received-events @agent2_recvd)))))
+          )
+        )
+      )
+    ))
+
+(deftest fin-unfin-chute-test
+  (testing "should split character agent and his value"
+    (let [agent1 (agent {:deferred-events []})
+          agent2 (agent {:deferred-events [1]})
+          fin-unfin {:done (atom []) :not-done (atom [])}]
+      (let [agent1_val (transform/fin-unfin-chute @agent1 agent1 fin-unfin)]
+        (is (= 1 (count @(:done fin-unfin))))
+        )
+      (let [agent2_val (transform/fin-unfin-chute @agent2 agent2 fin-unfin)
+            agent1_val (transform/fin-unfin-chute @agent1 agent1 fin-unfin)]
+        (is (= 1 (count @(:not-done fin-unfin))))
+        (is (= 2 (count @(:done fin-unfin))))
+        )
+      )
+    ))
+  
+(deftest split-fin-unfin2-test
+  (testing "split agents between completed and incomplete"
+    (let [agents (create-fin-unfin-agents)]
+      (let [fin-unfin (transform/split-fin-unfin2 agents)]
+        (is (= 2 (count (:done fin-unfin))))
+        (is (= 1 (count (:not-done fin-unfin))))
         )
       )
     ))

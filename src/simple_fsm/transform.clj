@@ -42,9 +42,32 @@
 (defn split-fin-unfin
   "convert this to use vars/refs"
   [char-agents]
-  { :not-done (filter #(empty? (:deferred-events @%1) ) char-agents)
-   :done (filter #(not (empty? (:deferred-events @%1) )) char-agents) } 
+  { :done (filter #(empty? (:deferred-events @%1) ) char-agents)
+   :not-done (filter #(not (empty? (:deferred-events @%1) )) char-agents) } 
   )
+
+(defn fin-unfin-chute
+  [character character-agent fin-unfin]
+  (if (empty? (:deferred-events character))    
+    (swap! (:done fin-unfin) conj character)
+    (swap! (:not-done fin-unfin) conj character-agent)
+    )
+  character
+  )
+  
+(defn split-fin-unfin2
+  "so what you want to do is actually do is use send functions
+   to send "
+  [char-agents]
+  (let [fin-unfin {:done (atom []) :not-done (atom [])}]
+    (let [processed
+          (map #(send %1 fin-unfin-chute %1 fin-unfin) char-agents)]
+      (doall (map await processed)) ;; force side effect
+      {:done @(:done fin-unfin) :not-done @(:not-done fin-unfin)}
+      )
+    )
+  )
+  
 
 (defn add-time-energy
   [character delta]
@@ -58,7 +81,7 @@
    a partial that allows destination to send response back"
   (let [enhanced-event (conj event {:send-response-fn
                                     (partial send-event destination origin)})]
-    (send destination (partial to-queue :received-events) enhanced-event)                  
+    (send destination (partial to-queue :received-events) enhanced-event)
     )
   )
 
