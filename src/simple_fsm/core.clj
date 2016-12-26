@@ -1,25 +1,34 @@
-(ns simple-fsm.core)
+(ns simple-fsm.core
+  (:require [simple-fsm.fsm :as fsm])
+  (:require [simple-fsm.transform :as transform]))
+                                       
+;; now if an event reaches the fsm you want it to transition
+;; so you would want to say create-fsm(character, valid-transitions,
+;; pre-action, action, post-action.
+;; so the engine would process events for character while it has time
+;; energy
 
-(def initial-scene {:characters {"Jules" {:emotion :calm
-                                          :alive true}
-                                 "Brett" {:emotion :scared
-                                          :alive true}}})
+(def event1 { :num-guest 1 :event-type :guest-arrived })
 
-(defn kill-character [scene to-kill]
-  (update-in scene [:characters to-kill :alive] (constantly false)))
+(def waiter1 (transform/create-character :waiter "waiter1" :waiting))
+(def guest1 (transform/create-character :guest "guest1" :arrived))
 
-(defn act-on [scene [action [from-character to-character]]]
-  (if (= action :say-what)
-    [scene [[:shoot [to-character from-character]]]]
-    (if (= action :shoot)
-      [(kill-character scene to-character) []]
-      [scene []])))
+(def partial-send (partial transform/send-event guest1 waiter1)) 
 
-(defn play-scene [scene [current-action & rest-actions]]
-  (println current-action)
-  (if (nil? current-action)
-    scene
-    (let [[updated-scene next-actions] (act-on scene current-action)]
-      (recur updated-scene (concat rest-actions next-actions)))))
 
-(play-scene initial-scene [[:say-what ["Brett" "Jules"]]])
+(def waiter-transition [{:old-state :waiting :event :guest-arrived
+                        :action
+                        (fn [character event environ]
+                          (let [num-guests (:num-guest event)]
+                            (println (str "seating " num-guests " guests!"))
+                            )
+                          character 
+                          ) :new-state :seating-guests
+                         :time-cost 2.0 }                       
+                        ])
+
+(fsm/create-process-methods :waiter waiter-transition)
+(fsm/create-process-methods :guest [])
+
+;;(integrate-character waiter1 [event1 event1] nil)
+
