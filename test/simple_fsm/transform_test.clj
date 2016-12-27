@@ -30,14 +30,14 @@
 
 (deftest add-time-energy-test
   (testing "add time energy"
-    (let [character (transform/add-time-energy {:time-energy 0} 20)]
+    (let [character (transform/add-time-energy 20 {:time-energy 0})]
       (is (contains? character :time-energy))
       (is (= 20 (:time-energy character)))
       )))
       
 (deftest take-character-energy-test
   (testing "check character energy can be minused out"
-    (let [character (transform/add-time-energy {:time-energy 0} 2)]
+    (let [character (transform/add-time-energy 2 {:time-energy 0})]
       (let [result (transform/take-character-energy character 3)]
         (is (= -1 (:time-energy result)))
         )

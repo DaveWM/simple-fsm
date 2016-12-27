@@ -12,18 +12,30 @@
      ]
     ))
 
-(defn create-process-methods [character-type transition]
-  (defmethod process-character
-    [character-type (:old-state transition) (:event transition)]
-    [character event environ]
-    "run action on character, then return new character value"
-    (if (< (:time-cost transition) (:time-energy character))
-      (let [tp-char (assoc-in character [:time-energy]
-                              (- (:time-energy character)
-                                 (:time-cost transition)))]
-        ( (:action transition) tp-char event environ) )     
-      (transform/to-queue
-       :deferred-event-queue character event ) ;; no TE so move to deferred    
+(defn create-process-methods [character-type transitions]
+  (loop [[transition & rest] transitions]
+    (println "creating dispatch: "
+             [character-type (:old-state transition) (:event transition)])    
+    
+    (defmethod process-character
+      [character-type (:old-state transition) (:event transition)]
+      [character event environ]
+      "run action on character, then return new character value"
+      (if (<= (:time-cost transition) (:time-energy character))
+        (let [tp-char (assoc-in character [:time-energy]
+                                (- (:time-energy character)
+                                   (:time-cost transition)))]
+          (assoc-in
+           ( (:action transition) tp-char event environ) 
+           [:state] (:new-state transition))
+          )        
+        (transform/to-queue
+         :deferred-event-queue character event ) ;; no TE so move to deferred
+        )
+      )
+    (if (empty? rest)
+      nil
+      (recur rest)
       )
     )
   )
@@ -38,7 +50,7 @@
       (let [processed-character
             (process-character prepped-character event environ)]
         (if (empty? remaining)
-          (processed-character)
+          processed-character
           (recur remaining processed-character)
           )
         )
@@ -61,13 +73,13 @@
            (map agent character-plus-delta)
            processed []]
       ;; next we move their deferred into current queue
-      (let [integrated-characters (map #(send integrate-character
-                                                    %1 environ)
+      (let [integrated-characters (map #(send %1 integrate-character
+                                                    environ)
                                              agent-characters)]
         (map await integrated-characters)
         (let [fin-unfin (transform/split-fin-unfin integrated-characters)]
           (if (empty? (:not-done fin-unfin))
-            (:done fin-unfin)
+            (concat (:done fin-unfin) processed)
             (recur (:not-done fin-unfin) (:done fin-unfin))
             )
           )))

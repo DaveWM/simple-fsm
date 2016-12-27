@@ -70,7 +70,7 @@
   
 
 (defn add-time-energy
-  [character delta]
+  [delta character]
   (assoc-in character [:time-energy]
             (+ (:time-energy character) delta ))
   )
