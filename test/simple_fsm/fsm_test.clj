@@ -132,6 +132,16 @@
               g1 (assoc-in guest1 [:received-events] g1_events)]
           (let
               [characters (fsm/integrate-environ nil [w1 w2 g1] 2)]
+            (loop [[character & rest] characters]
+              (if (= :waiter (:character-type character))
+                (is (= :seating-guest (:state character)))
+                (if (empty? rest)
+                  nil
+                  (recur rest)
+                  )
+                )
+              )
+            (is (= 3 (count characters)))
             )
           )
         )
