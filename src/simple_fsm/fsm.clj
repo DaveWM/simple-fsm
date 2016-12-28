@@ -16,7 +16,6 @@
   (loop [[transition & rest] transitions]
     (println "creating dispatch: "
              [character-type (:old-state transition) (:event transition)])    
-    
     (defmethod process-character
       [character-type (:old-state transition) (:event transition)]
       [character event environ]
@@ -44,44 +43,48 @@
   "integrate a character"  
   [character environ]
   (let [prepped-character (transform/prep-character character)]
+;;    (println "begin integration of character: " (:name character))
     (loop [[event & remaining] (:event-queue
-                                prepped-character)
+                                prepped-character)           
            prepped-character prepped-character]
-      (let [processed-character
-            (process-character prepped-character event environ)]
-        (if (empty? remaining)
-          processed-character
+      (if (= nil event)
+        (assoc-in prepped-character [:event-queue] [])
+        (let [processed-character
+              (process-character prepped-character event environ)]
+  ;;        (println (str "integrating character: "
+    ;;                    (:name character) " for event: "
+      ;;                  (:event-type event)))
           (recur remaining processed-character)
           )
         )
       )
-    )
-  )
+    ))
 
 
-;; the idea is first create a check to see if time-energy is positive
-;; then if positive execute process-character, if not place back on queue (by
-;; sending to self (using arguments from before)
+
 (defn integrate-environ
   [environ characters time-delta]
-  "so what you get with this"
+  "integrates the environ with character agents for a delta value and 
+   returns awaited character agents (there will be no pending actions on 
+   agents on return"
   ;; first all characters get energy delta added to them
-  (let [character-plus-delta (map (partial transform/add-time-energy time-delta) characters)]
-    ;; now we turn the characters into agents, and store
-    ;; their event queue next to them which is the current queue
-    (loop [agent-characters
-           (map agent character-plus-delta)
-           processed []]
-      ;; next we move their deferred into current queue
-      (let [integrated-characters (map #(send %1 integrate-character
-                                                    environ)
-                                             agent-characters)]
-        (map await integrated-characters)
-        (let [fin-unfin (transform/split-fin-unfin integrated-characters)]
-          (if (empty? (:not-done fin-unfin))
-            (concat (:done fin-unfin) processed)
-            (recur (:not-done fin-unfin) (:done fin-unfin))
-            )
-          )))
-    )
+  (loop [char-plus-delta          
+         (map
+          #(send %1 (partial transform/add-time-energy time-delta)) characters)
+         
+         processed []]
+    (println "added time energy delta")
+    ;; next we move their deferred into current queue
+    (let [integrated-characters (map #(send-off %1 integrate-character
+                                            environ)
+                                     char-plus-delta)]
+      (doall (map #(await-for 1000 %1) integrated-characters))
+      (let [fin-unfin (transform/split-fin-unfin2 integrated-characters)]
+        ;;(println (str "finunfin: " fin-unfin))
+        (if (empty? (:not-done fin-unfin))
+          (concat (:done fin-unfin) processed)
+          (recur (concat (:not-done fin-unfin) (:done fin-unfin)) [])
+          )
+        )))
   )
+  

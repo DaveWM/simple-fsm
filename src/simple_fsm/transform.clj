@@ -48,8 +48,9 @@
 
 (defn fin-unfin-chute
   [character character-agent fin-unfin]
-  (if (empty? (:deferred-events character))    
-    (swap! (:done fin-unfin) conj character)
+  (if (and (empty? (:deferred-events character))
+           (empty? (:received-events character)))    
+    (swap! (:done fin-unfin) conj character-agent)
     (swap! (:not-done fin-unfin) conj character-agent)
     )
   character
@@ -81,6 +82,8 @@
    a partial that allows destination to send response back"
   (let [enhanced-event (conj event {:send-response-fn
                                     (partial send-event destination origin)})]
+    (println (str "about to send to: " (:name @destination) "\n from: "
+                  (:name @origin) "\n"))
     (send destination (partial to-queue :received-events) enhanced-event)
     )
   )
@@ -88,5 +91,9 @@
 (defn create-character
   [type name initial-state]
   { :name name :state initial-state :character-type type
-   :event-queue []}
+   :event-queue [] :received-events [] :deferred-events [] :time-energy 0 }
+  )
+
+(defn respond [event event-type]
+  ((:send-response-fn event) {:event-type event-type})
   )

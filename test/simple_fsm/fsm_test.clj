@@ -89,61 +89,136 @@
       )))
 
 
-;; testing integrate environ
-;; add a guest transition
+;; ;; testing integrate environ
+;; ;; add a guest transition
   
-(def guest-transitions [
-                        {:old-state :arrived
-                         :event :have-a-seat
-                         :action
-                         (fn [character event environ]
-                           (println "thank you")
-                           character
-                           )
-                         :new-state :seated
-                         :time-cost 3 }
-                        ])
+;; (def guest-transitions [
+;;                         {:old-state :arrived
+;;                          :event :have-a-seat
+;;                          :action
+;;                          (fn [character event environ]
+;;                            (println "thank you")
+;;                            character
+;;                            )
+;;                          :new-state :seated
+;;                          :time-cost 3 }
+;;                         ])
 
-(fsm/create-process-methods :guest guest-transitions)
+;; (fsm/create-process-methods :guest guest-transitions)
 
-(deftest integrate-environ-test
+;; (deftest integrate-environ-test
+;;   (testing "attempt to integrate multiple characters"
+;;     (let [waiter1
+;;           (assoc-in
+;;            (transform/create-character :waiter "waiter1" :waiting)
+;;            [:time-energy] 0)
+;;           waiter2
+;;           (assoc-in
+;;            (transform/create-character :waiter "waiter2" :waiting)
+;;            [:time-energy] 0)
+;;           guest1
+;;           (assoc-in
+;;            (transform/create-character :guest "guest1" :arrived)
+;;            [:time-energy] 0)
+;;           ]
+;;       (let [
+;;             w1_events [{:event-type :guest-arrived}
+;;                        {:event-type :guest-seated }]
+;;             w2_events [{:event-type :guest-arrived}
+;;                        {:event-type :guest-seated }]
+;;             g1_events [{:event-type :have-a-seat}]]
+;;         (let [w1 (assoc-in waiter1 [:received-events] w1_events)
+;;               w2 (assoc-in waiter2 [:received-events] w2_events)
+;;               g1 (assoc-in guest1 [:received-events] g1_events)]
+;;           (let
+;;               [characters (fsm/integrate-environ nil [w1 w2 g1] 2)]
+;;             (loop [[character & rest] characters]
+;;               (if (= :waiter (:character-type character))
+;;                 (is (= :seating-guest (:state character)))
+;;                 (if (empty? rest)
+;;                   nil
+;;                   (recur rest)
+;;                   )
+;;                 )
+;;               )
+;;             (is (= 3 (count characters)))
+;;             )
+;;           )
+;;         )
+;;       )
+;;     ))
+
+
+
+(deftest integrate-environ-react-test
   (testing "attempt to integrate multiple characters"
+    (def waiter-transitions-react [{:old-state :waiting
+                                    :event :guest-arrived
+                                    :action
+                                    (fn [character event environ]
+                                      (println "seating guests")
+                                      (println "messaged originator")
+                                      ( (:send-response-fn event)
+                                       {:event-type :have-a-seat}
+                                       )   
+                                      character
+                                      )
+                                    :new-state :seating-guest
+                                    :time-cost 2 }                       
+                                   
+                                   {:old-state :seating-guest
+                                    :event :guest-seated
+                                    :action
+                                    (fn [character event environ]
+                                      (println "seated guests")
+                                      character
+                                      )
+                                    :new-state :waiting
+                                    :time-cost 2 }
+                                   ])
+    
+    (def guest-transitions-react [
+                                  {:old-state :arrived
+                                   :event :have-a-seat
+                                   :action
+                                   (fn [character event environ]
+                                     (println "thank you")
+                                     ( (:send-response-fn event)
+                                      {:event-type :guest-seated }
+                                      )
+                                     character
+                                     )
+                                   :new-state :seated
+                               :time-cost 3 }
+                                  ])
+    
+    (fsm/create-process-methods :waiter waiter-transitions-react)
+    (fsm/create-process-methods :guest guest-transitions-react)    
     (let [waiter1
-          (assoc-in
-           (transform/create-character :waiter "waiter1" :waiting)
-           [:time-energy] 0)
-          waiter2
-          (assoc-in
-           (transform/create-character :waiter "waiter2" :waiting)
-           [:time-energy] 0)
+          (agent
+            (transform/create-character :waiter "waiter1" :waiting)
+            )
           guest1
-          (assoc-in
+          (agent
            (transform/create-character :guest "guest1" :arrived)
-           [:time-energy] 0)
+           )
           ]
       (let [
-            w1_events [{:event-type :guest-arrived}
-                       {:event-type :guest-seated }]
-            w2_events [{:event-type :guest-arrived}
-                       {:event-type :guest-seated }]
-            g1_events [{:event-type :have-a-seat}]]
-        (let [w1 (assoc-in waiter1 [:received-events] w1_events)
-              w2 (assoc-in waiter2 [:received-events] w2_events)
-              g1 (assoc-in guest1 [:received-events] g1_events)]
+            boot-strap-event {:event-type :guest-arrived
+                              :send-response-fn
+                              (partial transform/send-event waiter1 guest1)
+                              }]
+        (let [w1 (transform/send-event guest1 waiter1
+                                       boot-strap-event)
+              g1 guest1]
           (let
-              [characters (fsm/integrate-environ nil [w1 w2 g1] 2)]
-            (loop [[character & rest] characters]
-              (if (= :waiter (:character-type character))
-                (is (= :seating-guest (:state character)))
-                (if (empty? rest)
-                  nil
-                  (recur rest)
-                  )
-                )
-              )
-            (is (= 3 (count characters)))
+              [characters (fsm/integrate-environ nil [w1 g1] 6)]            
+            (is (= 2 (count characters)))
+            (is (= :seated (:state @g1)))
+            (is (= :waiting (:state @w1)))
             )
           )
         )
       )
     ))
+
