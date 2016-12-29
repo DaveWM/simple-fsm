@@ -1,6 +1,8 @@
 (ns simple-fsm.core
   (:require [simple-fsm.fsm :as fsm])
-  (:require [simple-fsm.transform :as transform]))
+  (:require [simple-fsm.transform :as transform])
+  (:require [clojure.tools.logging :as log])
+  )
                                        
 ;; pulp fiction example from meetup
 
@@ -25,6 +27,7 @@
                          :action
                          (fn [character event environ]
                            (println "die mother fucker")
+                           
                            (transform/respond event :shoot-brett)
                            character
                            )
@@ -95,9 +98,10 @@
 (defn -main
   "pulp fiction"
   [& args]
+  (log/info "Simple FSM starting to run: ")
   (fsm/integrate-environ nil [jules brett] 9)
+  (shutdown-agents )
   )
 
 
                         
-

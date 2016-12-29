@@ -1,5 +1,6 @@
 (ns simple-fsm.fsm
-  (:require [simple-fsm.transform :as transform]))
+  (:require [simple-fsm.transform :as transform])
+    (:require [clojure.tools.logging :as log]))
 
 
 (defmulti process-character
@@ -42,8 +43,8 @@
 (defn integrate-character
   "integrate a character"  
   [character environ]
-  (let [prepped-character (transform/prep-character character)]
-;;    (println "begin integration of character: " (:name character))
+  (log/info "begin integration of character: " (:name character))
+  (let [prepped-character (transform/prep-character character)]    
     (loop [[event & remaining] (:event-queue
                                 prepped-character)           
            prepped-character prepped-character]
@@ -51,9 +52,9 @@
         (assoc-in prepped-character [:event-queue] [])
         (let [processed-character
               (process-character prepped-character event environ)]
-  ;;        (println (str "integrating character: "
-    ;;                    (:name character) " for event: "
-      ;;                  (:event-type event)))
+          (log/debug (str "integrating character: "
+                        (:name character) " for event: "
+                        (:event-type event)))
           (recur remaining processed-character)
           )
         )
@@ -73,14 +74,12 @@
           #(send %1 (partial transform/add-time-energy time-delta)) characters)
          
          processed []]
-    (println "added time energy delta")
     ;; next we move their deferred into current queue
-    (let [integrated-characters (map #(send-off %1 integrate-character
+    (let [integrated-characters (map #(send %1 integrate-character
                                             environ)
                                      char-plus-delta)]
       (doall (map #(await-for 1000 %1) integrated-characters))
       (let [fin-unfin (transform/split-fin-unfin2 integrated-characters)]
-        ;;(println (str "finunfin: " fin-unfin))
         (if (empty? (:not-done fin-unfin))
           (concat (:done fin-unfin) processed)
           (recur (concat (:not-done fin-unfin) (:done fin-unfin)) [])

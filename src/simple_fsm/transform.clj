@@ -63,7 +63,7 @@
   (let [fin-unfin {:done (atom []) :not-done (atom [])}]
     (let [processed
           (map #(send %1 fin-unfin-chute %1 fin-unfin) char-agents)]
-      (doall (map await processed)) ;; force side effect
+      (doall (map #(await-for 1000 %1) processed)) ;; force side effect
       {:done @(:done fin-unfin) :not-done @(:not-done fin-unfin)}
       )
     )
