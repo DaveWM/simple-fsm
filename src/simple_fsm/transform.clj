@@ -42,12 +42,36 @@
 (defn split-fin-unfin
   "convert this to use vars/refs"
   [char-agents]
-  { :not-done (filter #(empty? (:deferred-events @%1) ) char-agents)
-   :done (filter #(not (empty? (:deferred-events @%1) )) char-agents) } 
+  { :done (filter #(empty? (:deferred-events @%1) ) char-agents)
+   :not-done (filter #(not (empty? (:deferred-events @%1) )) char-agents) } 
   )
 
+(defn fin-unfin-chute
+  [character character-agent fin-unfin]
+  (if (and (empty? (:deferred-events character))
+           (empty? (:received-events character)))    
+    (swap! (:done fin-unfin) conj character-agent)
+    (swap! (:not-done fin-unfin) conj character-agent)
+    )
+  character
+  )
+  
+(defn split-fin-unfin2
+  "so what you want to do is actually do is use send functions
+   to send "
+  [char-agents]
+  (let [fin-unfin {:done (atom []) :not-done (atom [])}]
+    (let [processed
+          (map #(send %1 fin-unfin-chute %1 fin-unfin) char-agents)]
+      (doall (map #(await-for 1000 %1) processed)) ;; force side effect
+      {:done @(:done fin-unfin) :not-done @(:not-done fin-unfin)}
+      )
+    )
+  )
+  
+
 (defn add-time-energy
-  [character delta]
+  [delta character]
   (assoc-in character [:time-energy]
             (+ (:time-energy character) delta ))
   )
@@ -58,12 +82,18 @@
    a partial that allows destination to send response back"
   (let [enhanced-event (conj event {:send-response-fn
                                     (partial send-event destination origin)})]
-    (send destination (partial to-queue :received-events) enhanced-event)                  
+    (println (str "about to send to: " (:name @destination) "\n from: "
+                  (:name @origin) "\n"))
+    (send destination (partial to-queue :received-events) enhanced-event)
     )
   )
 
 (defn create-character
   [type name initial-state]
   { :name name :state initial-state :character-type type
-   :event-queue []}
+   :event-queue [] :received-events [] :deferred-events [] :time-energy 0 }
+  )
+
+(defn respond [event event-type]
+  ((:send-response-fn event) {:event-type event-type})
   )
